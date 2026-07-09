@@ -1,0 +1,9 @@
+RewriteEngine On
+ErrorDocument 403 /WebAdmin/com/error.php
+ErrorDocument 404 /WebAdmin/com/error.php
+
+Options -Indexes
+<Files .htaccess>
+Order allow,deny
+Deny from all
+</Files>
