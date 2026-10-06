@@ -1,34 +1,45 @@
 <?php
     //-- CONSTANTES --
     define("NIVEL","../../");
-    define("MODULO","m10s01");
+    define("MODULO","m20s01");
 
     //-- CONFIGURACIONES GENERALES --
     require_once(NIVEL."com/cabecera.php");
 
     //-- PARAMETROS Y VARIABLES --
     $status = (isset($_POST["status"])) ? $_POST["status"] : 1 ;
-    $reg = $params = array();
+    $reg = $catStatus = array();
+
+    require_once(NIVEL."../com/config.php");
+    $dbAdmin = conectaBD("mysql","admin");
+
+    //-- CONSULTA REGISTROS --
     $cont = 1;
-
-    //-- CONECTA A LA BASE DE DATOS --
-    include(NIVEL."../com/configBD_Admin.php");
-
-    $params[] = $status;
     $sql = "SELECT a.id, a.clave, a.nombre, a.abreviatura, b.nombre, b.color, b.icono
             FROM cat_actividad_regulada AS a
             JOIN cat_status_general AS b ON a.status = b.id
             WHERE a.status = ?";
     $prepare = $dbAdmin->prepare($sql);
-    $result = $dbAdmin->execute($prepare,$params);
+    $result = $dbAdmin->execute($prepare,[$status]);
     while(!$result->EOF){
         $reg[$cont]["id"] = $result->fields[0];
-        $reg[$cont]["clave"] = $result->fields[1];
+        $reg[$cont]["abrCNE"] = $result->fields[1];
         $reg[$cont]["nombre"] = $result->fields[2];
-        $reg[$cont]["abreviatura"] = $result->fields[3];
+        $reg[$cont]["abrSAT"] = $result->fields[3];
         $reg[$cont]["status_nombre"] = $result->fields[4];
         $reg[$cont]["status_color"] = $result->fields[5];
         $reg[$cont]["status_icono"] = $result->fields[6];
+        $result->MoveNext();
+        $cont++;
+    }
+
+    //-- CATÁLOGO DE STATUS --
+    $cont = 1;
+    $prepare = $dbAdmin->prepare("SELECT * FROM cat_status_general WHERE status = ? ORDER BY nombre ASC");
+    $result = $dbAdmin->execute($prepare,[1]);
+    while(!$result->EOF){
+        $catStatus[$cont]["id"] = $result->fields["id"];
+        $catStatus[$cont]["nombre"] = $result->fields["nombre"];
         $result->MoveNext();
         $cont++;
     }
@@ -60,21 +71,22 @@
                     $("#<?= $menuINFO["submenu_identificador"]?>").addClass("active-page-link");
                 <?php } ?>
 
-
                 $("#status option:selected").removeAttr("selected");
                 $("#status option[value='<?= $status; ?>']").attr('selected', 'selected');
-                $("#status").css("background-color", "#cdffc9");
 
-                $("#status").change(function(){ $("#formBusqueda").submit(); });
+                $("#status").change(function(){ $(window.parent.document.body).loadingModal({ text: 'Buscando ...', animation: 'cubeGrid' }); $("#formBusqueda").submit(); });
 
-                $('#apiCallbacks').DataTable({
-                    "lengthMenu": [[10, 25, 50], [10, 25, 50, "All"]],
+                $("#tabla").DataTable({
+                    "order": [[ 0, "asc" ]],
                     "language": {
                         "lengthMenu": "Mostrar _MENU_ registros por pagina",
                         "info": "Mostrando pagina _PAGE_ de _PAGES_",
                         "search": "Buscar:"
                     },
                 });
+
+                $(".form-select-chosen").trigger("change.select2");
+
             });
 
             function registro(id){
@@ -82,28 +94,15 @@
                 $("#modalRegistro").modal("show");
             }
 
-            function tamano(alto){
-                $("#modalRegistro iframe").removeAttr("height");
-                $("#modalRegistro iframe").attr("height",alto);
+            function tamano(alto, modal){
+                $("#"+modal+" iframe").removeAttr("height");
+                $("#"+modal+" iframe").attr("height",alto);
             }
 
             function recargar(){
-                $("#modalRegistro").modal("hide");
                 location.reload();
             }
 
-            function salir(){
-                $("#modalSalir").modal("show");
-            }
-
-            function perfil(id){
-                $("#modalPerfil iframe").attr("src","<?= NIVEL ?>usuarios/editarPerfil.php?id="+id);
-                $("#modalPerfil").modal("show");
-            }
-
-            function cerrarSesion(){
-                $.post("<?= NIVEL ?>com/cerrarSesion.php",{ }, function(ruta){ location.href = ruta; });
-            }
         </script>
     </head>
 
@@ -198,31 +197,35 @@
                         <div class="row gx-3">
                             <div class="col-sm-12">
                                 <div class="card mb-3">
-                                    <div class="card-header row">
-                                        <div class="col-10">
-                                            <h5 class="card-title">Busqueda</h5>
-                                        </div>
-                                        <div class="col-2  d-flex align-items-end flex-column ">
-                                            <button type="button" class="btn btn-primary" onclick="registro(0);">
-                                                <i class="bi bi-pencil-square"></i> Nuevo
-                                            </button>
+                                    <div class="card-header">
+                                        <div class="row">
+                                            <div class="col-10">
+                                                <h5 class="card-title">Busqueda</h5>
+                                            </div>
+                                            <div class="col-2  d-flex align-items-end flex-column ">
+                                                <button type="button" class="btn btn-sm btn-primary" onclick="registro(0);">
+                                                    <i class="bi bi-window-plus"></i> Agregar
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
-                                    <form id="formBusqueda" method="post" action="index.php">
-                                        <div class="card-body row">
-                                            <div class="col-md-4"></div>
-                                            <div class="col-md-1">
-                                                <label for="status" class="form-label pt-1">Status</label>
+
+                                    <div class="card-body">
+                                        <form id="formBusqueda" method="post" action="index.php">
+                                            <div class="row">
+                                                <div class="col-md-5"></div>
+                                                <div class="col-md-2">
+                                                    <label for="status" class="form-label pt-1">Status</label>
+                                                    <select class="form-select form-select-sm form-select-chosen shadow-sm" id="status" name="status">
+                                                        <?php for($x=1;$x<=count($catStatus);$x++){ ?>
+                                                            <option value="<?= $catStatus[$x]["id"] ?>"><?= $catStatus[$x]["nombre"] ?></option>
+                                                        <?php } ?>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-5"></div>
                                             </div>
-                                            <div class="col-md-3">
-                                                <select class="form-select" id="status" name="status">
-                                                    <option selected disabled value="">Seleccione</option>
-                                                    <option value="1">Activo</option>
-                                                    <option value="0">Inactivo</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </form>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -233,25 +236,27 @@
                                 <div class="card">
                                     <div class="card-body">
                                         <div class="table-responsive">
-                                            <table id="apiCallbacks" class="table custom-table table-hover">
+                                            <table id="tabla" class="table custom-table table-hover">
                                                 <thead>
                                                     <tr class="small text-center">
-                                                        <th width="5%">Id</th>
-                                                        <th width="20%">Clave</th>
-                                                        <th width="45%">Nombre</th>
-                                                        <th width="15%">Estatus</th>
-                                                        <th width="15%">Accion</th>
+                                                        <th width="8%">Id</th>
+                                                        <th width="17%">Abreviación CNE</th>
+                                                        <th width="17%">Abreviación SAT</th>
+                                                        <th width="30%">Nombre</th>
+                                                        <th width="14%">Estatus</th>
+                                                        <th width="14%">Accion</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     <?php for($x=1;$x<=count($reg);$x++){ ?>
-                                                        <tr class="small">
+                                                        <tr class="small text-center">
                                                             <td><?= $reg[$x]["id"] ?></td>
-                                                            <td><?= $reg[$x]["clave"] ?></td>
-                                                            <td><?= $reg[$x]["nombre"] ?></td>
-                                                            <td class="<?= $reg[$x]["status_color"] ?>"><?= $reg[$x]["status_nombre"] ?></td>
-                                                            <td class="text-center">
-                                                                <button type="button" class="btn btn-sm btn-primary" onclick="registro('<?= $reg[$x]['id'] ?>');">
+                                                            <td><?= $reg[$x]["abrCNE"] ?></td>
+                                                            <td><?= $reg[$x]["abrSAT"] ?></td>
+                                                            <td class="text-start pl-3"><?= $reg[$x]["nombre"] ?></td>
+                                                            <td class="<?= $reg[$x]["status_color"] ?>"><?= $reg[$x]["status_icono"]." ".$reg[$x]["status_nombre"] ?></td>
+                                                            <td>
+                                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="registro('<?= $reg[$x]['id'] ?>');" data-bs-toggle="tooltip" title="Editar Registro">
                                                                     <i class="bi bi-pencil-square"></i>
                                                                 </button>
                                                             </td>
@@ -264,8 +269,6 @@
                                 </div>
                             </div>
                         </div>
-
-
 
                     </div>
                     <!-- INFERIOR FIN -->
@@ -283,14 +286,13 @@
         </div>
         <!-- GENERAL FIN -->
 
-
         <!-- MODAL REGISTRO -->
         <div class="modal fade" id="modalRegistro" tabindex="-1" aria-labelledby="modalRegistroTitle" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-dialog modal-dialog-centered modal-md">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="modalRegistroCenterTitle">
-                            <i class="bi bi-person-square"></i> Editar Usuario
+                            <i class="bi bi-journal-check"></i> Actividad Regulada
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>

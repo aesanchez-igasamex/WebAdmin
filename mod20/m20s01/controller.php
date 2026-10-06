@@ -37,29 +37,23 @@
         $info["aceptar"] = 0;
         $info["timer"] = 0;
 
-        $param["razon_social"] = trim($_POST["razon_social"]);
-        $param["preciso"] = trim($_POST["preciso"]);
-        $param["id_sociedad_mercantil"] = $_POST["id_sociedad_mercantil"];
-        $param["rfc"] = trim($_POST["rfc"]);
-        $param["id_actividad_regulada"] = $_POST["id_actividad_regulada"];
-        $param["permiso"] = trim($_POST["permiso"]);
-        $param["id_comercializadora"] = (isset($_POST["id_comercializadora"]) && $_POST["id_comercializadora"]>0) ? $_POST["id_comercializadora"] : NULL;
-        $param["operacion_ini"] = (isset($_POST["operacion_ini"]) && $_POST["operacion_ini"]!="0000-00-00") ? $_POST["operacion_ini"] : NULL;
-        $param["operacion_fin"] = (isset($_POST["operacion_fin"]) && $_POST["operacion_fin"]!="0000-00-00") ? $_POST["operacion_fin"] : NULL;
+        $param["clave"] = trim($_POST["clave"]);
+        $param["nombre"] = trim($_POST["nombre"]);
+        $param["abreviatura"] = trim($_POST["abreviatura"]);
         $param["status"] = intval($_POST["status"]);
         $condition = "id = ".$info["id"];
 
         try{
             $dbAdmin->BeginTrans();
             if($info["id"]>0){
-                if( $dbAdmin->autoExecute("tbl_permisionarios",$param,"UPDATE",$condition) === FALSE ){ throw new Exception("Error al actualizar registro".$dbAdmin->errorMsg(), 100); }
-                else{ guardaBitacora(APLICACION,"Actualiza registro de Permisionario", $_SESSION["usuario_nombre"], "tbl_permisionarios", $info["id"], ""); }
+                if( $dbAdmin->autoExecute("cat_actividad_regulada",$param,"UPDATE",$condition) === FALSE ){ throw new Exception("Error al actualizar registro".$dbAdmin->errorMsg(), 100); }
+                else{ guardaBitacora(APLICACION,"Actualiza registro de Actividad Regulada", $_SESSION["usuario_nombre"], "cat_actividad_regulada", $info["id"], ""); }
             }
             else{
-                if( $dbAdmin->autoExecute("tbl_permisionarios",$param,"INSERT") === FALSE ){ throw new Exception("Error al insertar registro".$dbAdmin->errorMsg(), 100); }
+                if( $dbAdmin->autoExecute("cat_actividad_regulada",$param,"INSERT") === FALSE ){ throw new Exception("Error al insertar registro".$dbAdmin->errorMsg(), 100); }
                 else{
                     $info["id"] = $dbAdmin->Insert_ID();
-                    guardaBitacora(APLICACION,"Inserta nuevo registro de Permisionario", $_SESSION["usuario_nombre"], "tbl_permisionarios", $info["id"], "");
+                    guardaBitacora(APLICACION,"Inserta nuevo registro de Actividad Regulada", $_SESSION["usuario_nombre"], "cat_actividad_regulada", $info["id"], "");
                 }
             }
             $dbAdmin->CommitTrans();

@@ -168,6 +168,48 @@
                 $("#modalAsignarUsuarios").modal("show");
             }
 
+            function permisos(id){
+                $("#modalPermisos iframe").attr("src","editarPermisos.php?id_usuario="+id+"&id_aplicacion=<?= $id_aplicacion ?>");
+                $("#modalPermisos").modal("show");
+            }
+
+            function retirar(id){
+                Swal.fire({
+                    title: '¿Desea retirar al usuario de la aplicación?',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, retirar',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#FFA500' //-- color boton naranja
+                }).then((result) => {
+                    if(result.isConfirmed){
+                        $(window.parent.document.body).loadingModal({ text: 'Retirando ...', animation: 'cubeGrid' });
+                        $.ajax({
+                            type: "POST",
+                            url: "controller.php",
+                            data: { accion:"RETIRAR_USUARIO", id_usuario: id, id_aplicacion: <?= $id_aplicacion ?> },
+                            success: function(res){
+                                $(window.parent.document.body).loadingModal("destroy");
+                                try {
+                                    console.log(res);
+                                    res = JSON.parse(res);
+                                    window.parent.mensaje(res);
+                                    if(res.error === 0) window.location.href = "index.php?id_aplicacion=" + res.id_aplicacion;
+                                }
+                                catch (e) {
+                                    console.error("Error al parsear JSON:", e);
+                                    window.parent.mensaje({error: 1, titulo: "Error", mensaje: "No fue posible procesar la respuesta del servidor.", aceptar: 1});
+                                }
+                            },
+                            error: function( xhr, err ) {
+                                $(window.parent.document.body).loadingModal("destroy");
+                                window.parent.mensaje({error: 1, titulo: "Error", mensaje: "No fue posible establecer comunicación con el servidor.", aceptar: 1});
+                            }
+                        });
+                    }
+                });
+            }
+
             function tamano(alto, modal){
                 $("#" + modal + " iframe").removeAttr("height");
                 $("#" + modal + " iframe").attr("height",alto);
@@ -335,8 +377,10 @@
                                                         <th width="15%">Nombre</th>
                                                         <th width="15%">A. Paterno</th>
                                                         <th width="15%">A. Materno</th>
-                                                        <th width="10%">Rol</th>
-                                                        <th width="10%">Area</th>
+                                                        <?php if($id_aplicacion > 0){ ?>
+                                                            <th width="10%">Rol</th>
+                                                            <th width="10%">Area</th>
+                                                        <?php } ?>
                                                         <th width="10%">Estatus</th>
                                                         <th width="15%">Accion</th>
                                                     </tr>
@@ -348,15 +392,17 @@
                                                             <td class="text-start pl-3"><?= $usuarios[$x]["nombre"] ?></td>
                                                             <td class="text-start"><?= $usuarios[$x]["ap_paterno"] ?></td>
                                                             <td class="text-start"><?= $usuarios[$x]["ap_materno"] ?></td>
-                                                            <td><?= $usuarios[$x]["rol"] ?></td>
-                                                            <td><?= $usuarios[$x]["area"] ?></td>
+                                                            <?php if($id_aplicacion > 0){ ?>
+                                                                <td><?= $usuarios[$x]["rol"] ?></td>
+                                                                <td><?= $usuarios[$x]["area"] ?></td>
+                                                            <?php } ?>
                                                             <td class="<?= $usuarios[$x]["status_color"] ?>"><?= $usuarios[$x]["status_icono"]." ".$usuarios[$x]["status_nombre"] ?></td>
                                                             <td>
                                                                 <button type="button" class="btn btn-sm btn-outline-primary" onclick="usuario(<?= $usuarios[$x]['id'] ?>);" data-bs-toggle="tooltip" title="Información del Usuario">
                                                                     <i class="bi bi-person-lines-fill"></i>
                                                                 </button>
                                                                 <?php if($id_aplicacion>0){ ?>
-                                                                    <button type="button" class="btn btn-sm btn-outline-info" onclick="privilegios('<?= $usuarios[$x]['id'] ?>');" data-bs-toggle="tooltip" title="Editar Privilegios">
+                                                                    <button type="button" class="btn btn-sm btn-outline-info" onclick="permisos('<?= $usuarios[$x]['id'] ?>');" data-bs-toggle="tooltip" title="Editar Privilegios">
                                                                         <i class="bi bi-person-fill-gear"></i>
                                                                     </button>
                                                                     <button type="button" class="btn btn-sm btn-outline-danger" onclick="retirar('<?= $usuarios[$x]['id'] ?>');" data-bs-toggle="tooltip" title="Retirar de la Aplicación">
@@ -409,13 +455,30 @@
             </div>
         </div>
 
-        <-- MODAL ASIGNAR USUARIOS -->
+        <!-- MODAL ASIGNAR USUARIOS -->
         <div class="modal fade" id="modalAsignarUsuarios" tabindex="-1" aria-labelledby="modalAsignarUsuariosTitle" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="modalAsignarUsuariosCenterTitle">
                             <i class="bi bi-people-fill"></i> Asignar Usuarios a la Aplicación
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-2">
+                        <iframe width="100%" frameborder="0" style="border:none;"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL PERMISOS -->
+        <div class="modal fade" id="modalPermisos" tabindex="-1" aria-labelledby="modalPermisosTitle" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalPermisosCenterTitle">
+                            <i class="bi bi-person-fill-gear"></i> Menu del Usuario
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>

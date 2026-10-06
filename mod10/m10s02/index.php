@@ -1,4 +1,4 @@
-    <?php
+<?php
     //-- CONSTANTES --
     define("NIVEL","../../");
     define("MODULO","m10s02");
@@ -7,149 +7,81 @@
     require_once(NIVEL."com/cabecera.php");
 
     //-- PARAMETROS Y VARIABLES --
-    $id_sistema = ($_POST["id_sistema"]>0)? $_POST["id_sistema"] : 0 ;
-    $id_actividad_regulada = ($_POST["id_actividad_regulada"]>0)? $_POST["id_actividad_regulada"] : 0 ;
-    $id_status = (isset($_POST["id_status"]))? $_POST["id_status"] : 1 ;
-    $reg = array();
+    $id_actividad_regulada = (is_null($_POST["id_actividad_regulada"]) || $_POST["id_actividad_regulada"] === "ALL") ? null : $_POST["id_actividad_regulada"] ;
+    $id_comercializador = (is_null($_POST["id_comercializador"]) || $_POST["id_comercializador"] === "ALL") ? null : $_POST["id_comercializador"] ;
+    $id_status = (is_null($_POST["id_status"]) || $_POST["id_status"] === "ALL") ? null : $_POST["id_status"] ;
+    $param = $reg = $catActividadRegulada = $catStatus = array();
+
+    require_once(NIVEL."../com/config.php");
+    $dbAdmin = conectaBD("mysql","admin");
+
+    //-- CONSULTA REGISTROS --
     $cont = 1;
-
-    //-- CONECTA A LA BASE DE DATOS --
-    include(NIVEL."../com/configBD_Admin.php");
-    include(NIVEL."../com/configBD_SAG.php");
-    include(NIVEL."../com/configBD_SCADA.php");
-    include(NIVEL."../com/configBD_CV.php");
-
-    //-- OBTIENE DATOS DE LOS SISTEMAS --
-    $sql = "SELECT a.id, a.tipo_erm, a.nombre, b.nombre, a.preciso, a.id_erm, a.permiso, a.fecha_op_ini, a.fecha_op_fin,
-                    c.nombre, c.icono, c.color
-            FROM clientes_emr AS a
-            JOIN cat_sociedad_mercantil AS b ON a.sociedad_mercantil = b.id
-            JOIN cat_status_emr AS c ON a.status = c.id
-            WHERE a.tipo_erm = ?
-            AND a.status = ?";
-    $params[] = 'Interconexion';
-    $params[] = $id_status;
-    if($id_sistema>0){ $sql .= " AND a.id = ?"; $params[] = $id_sistema; }
-    if($id_actividad_regulada>0){ $sql .= " AND a.actividad_regulada = ?"; $params[] = $id_actividad_regulada; }
-    $sql .= " ORDER BY a.nombre ASC";
-
-    $prepare = $dbSAG->prepare($sql);
-    $result = $dbSAG->execute($prepare,$params);
-    $params = array();
+    $sql = "SELECT a.id, a.permiso, a.rfc, a.razon_social, b.nombre, a.preciso, a.operacion_ini, a.operacion_fin, c.nombre, c.color, c.icono
+            FROM tbl_permisionarios AS a
+            JOIN cat_sociedad_mercantil AS b ON a.id_sociedad_mercantil = b.id
+            JOIN cat_status_general AS c ON a.status = c.id
+            WHERE a.id > 0 ";
+    if($id_actividad_regulada!==null){ $sql .= " AND a.id_actividad_regulada = ?"; $param[] = $id_actividad_regulada; }
+    if($id_comercializador!==null){ $sql .= " AND a.id_comercializadora = ?"; $param[] = $id_comercializador; }
+    if($id_status!==null){ $sql .= " AND a.status = ?"; $param[] = $id_status; }
+    $prepare = $dbAdmin->prepare($sql);
+    $result = $dbAdmin->execute($prepare,$param);
     while(!$result->EOF){
         $reg[$cont]["id"] = $result->fields[0];
-        $reg[$cont]["tipo"] = $result->fields[1];
-        $reg[$cont]["negrita"] = "font-weight-bold";
-        $reg[$cont]["clase"] = $result->fields[0]."x";
-        $reg[$cont]["nombre"] = $result->fields[2]." ".$result->fields[3];
-        $reg[$cont]["nombre"] .= (strlen($result->fields[4])>0)? " (".$result->fields[4].")" : "" ;
-        $reg[$cont]["id_emr"] = $result->fields[5];
-        $reg[$cont]["permiso"] = $result->fields[6];
-        $reg[$cont]["operacion_ini"] = $result->fields[7];
-        $reg[$cont]["operacion_fin"] = $result->fields[8];
-        $reg[$cont]["status_nombre"] = $result->fields[9];
+        $reg[$cont]["permiso"] = $result->fields[1];
+        $reg[$cont]["rfc"] = $result->fields[2];
+        $reg[$cont]["nombre"] = (strlen($result->fields[5])>0)? $result->fields[3] . " (" . $result->fields[5] . ")" : $result->fields[3] ;
+        $reg[$cont]["soc_mercantil"] = $result->fields[4];
+        $reg[$cont]["operacion_ini"] = (isset($result->fields[6]) && $result->fields[6]!="0000-00-00") ? $result->fields[6] : "-";
+        $reg[$cont]["operacion_fin"] = (isset($result->fields[7]) && $result->fields[7]!="0000-00-00") ? $result->fields[7] : "-";
+        $reg[$cont]["status_nombre"] = $result->fields[8];
+        $reg[$cont]["status_color"] = $result->fields[9];
         $reg[$cont]["status_icono"] = $result->fields[10];
-        $reg[$cont]["status_color"] = $result->fields[11];
-
-        /*
-        //-- INFORMACION DE MEDICION --
-        $val = infoSCADA($result->fields[5]);
-        $reg[$cont]["medicion_nombre"]= $val["nombre"];
-
-        //-- INFORMACION DE CV --
-        $val = infoCV($result->fields[5]);
-        $reg[$cont]["cv_nombre"] = $val["nombre"];
-        */
-
-        $cont++;
-
-        $params[] = $result->fields[5];
-        $sql = "SELECT a.id, a.tipo_erm, a.nombre, b.nombre, a.preciso, a.id_erm, a.permiso,
-                        c.nombre, c.icono, c.color
-                FROM clientes_emr AS a
-                JOIN cat_sociedad_mercantil AS b ON a.sociedad_mercantil = b.id
-                JOIN cat_status_emr AS c ON a.status = c.id
-                WHERE a.tipo_erm <> 'Interconexion'
-                AND a.id_inter = ?
-                ORDER BY a.nombre ASC";
-        $prepare = $dbSAG->prepare($sql);
-        $result2 = $dbSAG->execute($prepare,$params);
-        $params = array();
-        while(!$result2->EOF){
-            $reg[$cont]["id"] = $result2->fields[0];
-            $reg[$cont]["tipo"] = $result2->fields[1];
-            $reg[$cont]["negrita"] = "";
-            $reg[$cont]["clase"] = $result->fields[0]."x";
-            $reg[$cont]["nombre"] = $result2->fields[2]." ".$result2->fields[3];
-            $reg[$cont]["nombre"] .= (strlen($result2->fields[4])>0)? " (".$result2->fields[4].")" : "" ;
-            $reg[$cont]["id_emr"] = $result2->fields[5];
-            $reg[$cont]["permiso"] = "-";
-
-            $reg[$cont]["status_nombre"] = $result2->fields[7];
-            $reg[$cont]["status_icono"] = $result2->fields[8];
-            $reg[$cont]["status_color"] = $result2->fields[9];
-
-            $result2->MoveNext();
-            $cont++;
-        }
-
         $result->MoveNext();
+        $cont++;
+    }
+
+    //-- CATÁLOGO DE ACTIVIDAD REGULADA --
+    $cont = 1;
+    $prepare = $dbAdmin->prepare("SELECT * FROM cat_actividad_regulada WHERE status = ? ORDER BY nombre ASC");
+    $result = $dbAdmin->execute($prepare,[1]);
+    while(!$result->EOF){
+        $catActividadRegulada[$cont]["id"] = $result->fields["id"];
+        $catActividadRegulada[$cont]["nombre"] =  $result->fields["clave"] . " - " . $result->fields["nombre"];
+        $result->MoveNext();
+        $cont++;
+    }
+
+    //-- CATÁLOGO DE COMERCIALIZADORAS --
+    $cont = 1;
+    $prepare = $dbAdmin->prepare("SELECT * FROM tbl_permisionarios WHERE id_actividad_regulada = ? AND status = ? ORDER BY id ASC");
+    $result = $dbAdmin->execute($prepare,[1,1]);
+    while(!$result->EOF){
+        $catComercializadora[$cont]["id"] = $result->fields["id"];
+        $catComercializadora[$cont]["nombre"] = $result->fields["razon_social"];
+        $result->MoveNext();
+        $cont++;
+    }
+
+    //-- CATÁLOGO DE STATUS --
+    $cont = 1;
+    $prepare = $dbAdmin->prepare("SELECT * FROM cat_status_general WHERE status = ? ORDER BY nombre ASC");
+    $result = $dbAdmin->execute($prepare,[1]);
+    while(!$result->EOF){
+        $catStatus[$cont]["id"] = $result->fields["id"];
+        $catStatus[$cont]["nombre"] = $result->fields["nombre"];
+        $result->MoveNext();
+        $cont++;
     }
 
     //-- CIERRA CONEXION A LA BASE DE DATOS --
     if($result) $result->close();
     $dbAdmin->close();
-    $dbSAG->close();
+?>
 
-
-    /*
-    * Obtiene la informacion de la Estacion de Medicion desde la BD de SCADA
-    * @param $id_emr : id de la estacion de medicion
-    * @return array : array con informacion de la estacion de medicion
-    */
-    function infoSCADA($id_emr) {
-        global $dbSCADA;
-        $params = array($id_emr);
-        $val = array();
-        $val["encontrado"] = false;
-
-        $prepare = $dbSCADA->prepare("SELECT * FROM clientes_emr WHERE id_erm = ?");
-        $result = $dbSCADA->execute($prepare,$params);
-        if (!$result->EOF) {
-            $val["encontrado"] = true;
-            $val["nombre"] = $result->fields["razon_social"];
-        }
-
-        return $val;
-    }
-
-    /*
-    * Obtiene la informacion de la Estacion de Medicion desde la BD de Controles Volumetricos
-    * @param $id_emr : id de la estacion de medicion
-    * @return array : array con informacion de la estacion de medicion
-    */
-    function infoCV($id_emr) {
-        global $dbCV;
-        $params = array($id_emr);
-        $val = array();
-        $val["encontrado"] = false;
-
-        $sql = "SELECT permisionario
-                FROM tbl_estaciones
-                WHERE id_erm = ?";
-        $prepare = $dbCV->prepare($sql);
-        $result = $dbCV->execute($prepare,$params);
-        if (!$result->EOF) {
-            $val["encontrado"] = true;
-            $val["nombre"] = mb_convert_encoding($result->fields["permisionario"], 'UTF-8', 'ISO-8859-1');
-        }
-
-        return $val;
-    }
-    ?>
-
-    <!DOCTYPE html>
-    <html lang="es">
+<!DOCTYPE html>
+<html lang="es">
 
     <head>
         <meta charset="utf-8">
@@ -161,25 +93,46 @@
         <script type="text/javascript">
             $(document).ready(function(){
                 <?php if($menuINFO["menu_tipo"]==1){ ?>
-                    $("#<?php echo $menuINFO["menu_identificador"]?>").addClass("active-page-link");
+                    $("#<?= $menuINFO["menu_identificador"]?>").addClass("active-page-link");
                 <?php } ?>
 
                 <?php if($menuINFO["menu_tipo"]==2){ ?>
-                    $("#<?php echo $menuINFO["menu_identificador"]?>").addClass("active-page-link");
-                    $("#<?php echo $menuINFO["submenu_identificador"]?>").addClass("active-page-link");
+                    $("#<?= $menuINFO["menu_identificador"]?>").addClass("active-page-link");
+                    $("#<?= $menuINFO["menu_identificador"]?>").addClass("active");
+                    $("#<?= $menuINFO["submenu_identificador"]?>").addClass("active-page-link");
                 <?php } ?>
 
+                <?php if($id_actividad_regulada!==null){ ?>
+                    $("#id_actividad_regulada option:selected").removeAttr("selected");
+                    $("#id_actividad_regulada option[value='<?= $id_actividad_regulada; ?>']").attr('selected', 'selected');
+                <?php } ?>
+                <?php if($id_comercializador!==null){ ?>
+                    $("#id_comercializador option:selected").removeAttr("selected");
+                    $("#id_comercializador option[value='<?= $id_comercializador; ?>']").attr('selected', 'selected');
+                <?php } ?>
+                <?php if($id_status!==null){ ?>
+                    $("#id_status option:selected").removeAttr("selected");
+                    $("#id_status option[value='<?= $id_status; ?>']").attr('selected', 'selected');
+                <?php } ?>
 
-                $("#id_status option:selected").removeAttr("selected");
-                $("#id_status option[value='<?= $status; ?>']").attr('selected', 'selected');
-                $("#id_status").css("background-color", "#cdffc9");
+                $("#id_actividad_regulada, #id_comercializador, #id_status").change(function(){ $(window.parent.document.body).loadingModal({ text: 'Buscando ...', animation: 'cubeGrid' }); $("#formBusqueda").submit(); });
 
-                $("#id_status").change(function(){ $("#formBusqueda").submit(); });
+                $("#tabla").DataTable({
+                    "order": [[ 0, "asc" ]],
+                    "language": {
+                        "lengthMenu": "Mostrar _MENU_ registros por pagina",
+                        "info": "Pagina _PAGE_ de _PAGES_, en total _MAX_ registros.",
+                        "search": "Buscar:"
+                    },
+                });
+
+                $(".form-select-chosen").trigger("change.select2");
+
             });
 
-            function editarInterconexion(id){
-                $("#modalInterconexion iframe").attr("src","editarInterconexion.php?id="+id);
-                $("#modalInterconexion").modal("show");
+            function registro(id){
+                $("#modalRegistro iframe").attr("src","editarRegistro.php?id="+id);
+                $("#modalRegistro").modal("show");
             }
 
             function tamano(alto, modal){
@@ -188,40 +141,9 @@
             }
 
             function recargar(){
-                $("#modalInterconexion").modal("hide");
                 location.reload();
             }
 
-            function coordenadas(id){
-                $("#modalCoordenadas iframe").attr("src","verMapa.php?id_sistema="+id);
-                $("#modalCoordenadas").modal("show");
-            }
-
-
-            function salir(){
-                $("#modalSalir").modal("show");
-            }
-
-            function perfil(id){
-                $("#modalPerfil iframe").attr("src","<?= NIVEL ?>usuarios/editarPerfil.php?id="+id);
-                $("#modalPerfil").modal("show");
-            }
-
-            function cerrarSesion(){
-                $.post("<?= NIVEL ?>com/cerrarSesion.php",{ }, function(ruta){ location.href = ruta; });
-            }
-
-            function expande(clave) {
-                $("." + clave).each(function() {
-                    if ($(this).hasClass("show")) {
-                        $(this).removeClass("show");
-                        $("#" + clave).html("<i class='bi bi-plus-lg'></i>");
-                    } else {
-                        $(this).addClass("show");
-                        $("#" + clave).html("<i class='bi bi-dash-lg'></i>");
-                    }
-                });
-            }
         </script>
     </head>
 
@@ -316,30 +238,53 @@
                         <div class="row gx-3">
                             <div class="col-sm-12">
                                 <div class="card mb-3">
-                                    <div class="card-header row">
-                                        <div class="col-10">
-                                            <h5 class="card-title">Busqueda</h5>
-                                        </div>
-                                        <div class="col-2  d-flex align-items-end flex-column ">
-                                            <button type="button" class="btn btn-primary" onclick="registro(0);">
-                                                <i class="bi bi-pencil-square"></i> Nuevo
-                                            </button>
-                                        </div>
-
-                                    </div>
-                                    <form id="formBusqueda" method="post" action="index.php">
-                                        <div class="card-body row">
-
-                                            <div class="col-md-1"><label for="id_status" class="form-label">Status</label></div>
-                                            <div class="col-md-3">
-                                                <select class="form-select" id="id_status" name="id_status">
-                                                    <option selected disabled value="">Seleccione</option>
-                                                    <option value="1">Activo</option>
-                                                    <option value="0">Inactivo</option>
-                                                </select>
+                                    <div class="card-header">
+                                        <div class="row">
+                                            <div class="col-10">
+                                                <h5 class="card-title">Busqueda</h5>
+                                            </div>
+                                            <div class="col-2  d-flex align-items-end flex-column ">
+                                                <button type="button" class="btn btn-sm btn-primary" onclick="registro(0);">
+                                                    <i class="bi bi-window-plus"></i> Agregar
+                                                </button>
                                             </div>
                                         </div>
-                                    </form>
+                                    </div>
+
+                                    <div class="card-body">
+                                        <form id="formBusqueda" method="post" action="index.php">
+                                            <div class="row">
+                                                <div class="col-md-3">
+                                                    <label for="id_actividad_regulada" class="form-label pt-1">Actividad Regulada</label>
+                                                    <select class="form-select form-select-sm form-select-chosen shadow-sm" id="id_actividad_regulada" name="id_actividad_regulada">
+                                                        <option value="ALL">Todas</option>
+                                                        <?php for($x=1;$x<=count($catActividadRegulada);$x++){ ?>
+                                                            <option value="<?= $catActividadRegulada[$x]["id"] ?>"><?= $catActividadRegulada[$x]["nombre"] ?></option>
+                                                        <?php } ?>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label for="id_comercializador" class="form-label pt-1">Comercializadora</label>
+                                                    <select class="form-select form-select-sm form-select-chosen shadow-sm" id="id_comercializador" name="id_comercializador">
+                                                        <option value="ALL">Todas</option>
+                                                        <?php for($x=1;$x<=count($catComercializadora);$x++){ ?>
+                                                            <option value="<?= $catComercializadora[$x]["id"] ?>"><?= $catComercializadora[$x]["nombre"] ?></option>
+                                                        <?php } ?>
+                                                    </select>
+                                                </div>
+
+                                                <div class="col-md-2">
+                                                    <label for="id_status" class="form-label pt-1">Status</label>
+                                                    <select class="form-select form-select-sm form-select-chosen shadow-sm" id="id_status" name="id_status">
+                                                        <option value="ALL">Todos</option>
+                                                        <?php for($x=1;$x<=count($catStatus);$x++){ ?>
+                                                            <option value="<?= $catStatus[$x]["id"] ?>"><?= $catStatus[$x]["nombre"] ?></option>
+                                                        <?php } ?>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -350,48 +295,34 @@
                                 <div class="card">
                                     <div class="card-body">
                                         <div class="table-responsive">
-
-                                            <table class="table custom-table table-hover" width="100%" cellspacing="0">
+                                            <table id="tabla" class="table custom-table table-hover">
                                                 <thead>
                                                     <tr class="small text-center">
-                                                        <th width="3%"></th>
-                                                        <th width="25%">Nombre</th>
-                                                        <th width="7%">Id</th>
-                                                        <th class="oculta" width="10%">Permiso</th>
-                                                        <th class="oculta" width="10%">Operacion Inicio/Fin</th>
-                                                        <th class="oculta" width="10%">Anual</th>
-                                                        <th class="oculta" width="10%">Zona</th>
-                                                        <th class="oculta" width="5%">Estatus</th>
-                                                        <th width="5%">Acción</th>
+                                                        <th width="6%">Id</th>
+                                                        <th width="20%">Nombre</th>
+                                                        <th width="12%">Soc. Mercantil</th>
+                                                        <th width="12%">Permiso</th>
+                                                        <th width="10%">RFC</th>
+                                                        <th width="12%">Inicio Operación</th>
+                                                        <th width="12%">Fin Operación</th>
+                                                        <th width="10%">Estatus</th>
+                                                        <th width="6%">Accion</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     <?php for($x=1;$x<=count($reg);$x++){ ?>
-                                                        <tr class="small text-center <?= $reg[$x]["negrita"] ?> <?= ($reg[$x]["tipo"] != "Interconexion") ? $reg[$x]["clase"] . " collapse" : "" ; ?> colapsado">
-                                                            <td>
-                                                                <?php if ($reg[$x]["tipo"] == "Interconexion") { ?>
-                                                                    <div class="btn btn-sm btn-light text-primary btnxs colapsado boss" id="<?= $reg[$x]["clase"] ?>" onclick="expande('<?= $reg[$x]['clase'] ?>');">
-                                                                        <i class="bi bi-plus-lg"></i>
-                                                                    </div>
-                                                                <?php } ?>
-                                                            </td>
-                                                            <td class="text-start">
-                                                                <?= $reg[$x]["nombre"] ?>
-                                                                <div class="box-bdr-blue text-blue rounded"><?= "- ".$reg[$x]["medicion_nombre"] ?></div>
-                                                                <div class="box-bdr-green text-success rounded"><?= "- ".$reg[$x]["cv_nombre"] ?></div>
-                                                            </td>
-                                                            <td><?= $reg[$x]["id_emr"] ?></td>
+                                                        <tr class="small text-center">
+                                                            <td><?= $reg[$x]["id"] ?></td>
+                                                            <td class="text-start pl-3"><?= $reg[$x]["nombre"] ?></td>
+                                                            <td class="text-start pl-3"><?= $reg[$x]["soc_mercantil"] ?></td>
                                                             <td><?= $reg[$x]["permiso"] ?></td>
+                                                            <td><?= $reg[$x]["rfc"] ?></td>
                                                             <td><?= $reg[$x]["operacion_ini"] ?></td>
-                                                            <td><?= $reg[$x]["x"] ?></td>
-                                                            <td><?= $reg[$x]["x"] ?></td>
+                                                            <td><?= $reg[$x]["operacion_fin"] ?></td>
                                                             <td class="<?= $reg[$x]["status_color"] ?>"><?= $reg[$x]["status_icono"]." ".$reg[$x]["status_nombre"] ?></td>
                                                             <td>
-                                                                <button type="button" class="btn btn-sm btn-primary" onclick="<?= ($reg[$x]["tipo"]=="Interconexion")? "editarInterconexion(".$reg[$x]["id"].")" : "editarCliente(".$reg[$x]["id"].")" ; ?>">
+                                                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="registro('<?= $reg[$x]['id'] ?>');" data-bs-toggle="tooltip" title="Editar Registro">
                                                                     <i class="bi bi-pencil-square"></i>
-                                                                </button>
-                                                                <button type="button" class="btn btn-sm btn-primary" onclick="coordenadas(<?= $reg[$x]['id'] ?>);">
-                                                                    <i class="bi bi-geo-fill"></i>
                                                                 </button>
                                                             </td>
                                                         </tr>
@@ -403,8 +334,6 @@
                                 </div>
                             </div>
                         </div>
-
-
 
                     </div>
                     <!-- INFERIOR FIN -->
@@ -422,13 +351,13 @@
         </div>
         <!-- GENERAL FIN -->
 
-        <!-- MODAL INTERCONEXION -->
-        <div class="modal fade" id="modalInterconexion" tabindex="-1" aria-labelledby="modalInterconexionTitle" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered modal-xl">
+        <!-- MODAL REGISTRO -->
+        <div class="modal fade" id="modalRegistro" tabindex="-1" aria-labelledby="modalRegistroTitle" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="modalInterconexionCenterTitle">
-                            <i class="bi bi-pencil-square"></i> Editar Sistema
+                        <h5 class="modal-title" id="modalRegistroCenterTitle">
+                            <i class="bi bi-journal-check"></i> Información del permisionario
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
@@ -439,26 +368,10 @@
             </div>
         </div>
 
-        <!-- MODAL COORDENADAS -->
-        <div class="modal fade" id="modalCoordenadas" tabindex="-1" aria-labelledby="modalCoordenadasTitle" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered modal-xl">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="modalCoordenadasCenterTitle">
-                            <i class="bi bi-pencil-square"></i> Editar Coordenadas
-                        </h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body p-2">
-                        <iframe width="100%" frameborder="0" style="border:none;"></iframe>
-                    </div>
-                </div>
-            </div>
-        </div>
         <?= $generalModales ?>
 
         <?php include(NIVEL."com/dependenciesDown.php"); ?>
 
     </body>
 
-    </html>
+</html>

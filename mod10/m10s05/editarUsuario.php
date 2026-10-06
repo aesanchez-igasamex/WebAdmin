@@ -11,9 +11,9 @@
     $usuario["foto"] = "default.png";
     $filtroStatus = [2,3];
 
-
     //-- CONECTA A LA BASE DE DATOS --
-    include(NIVEL."../com/configBD_Admin.php");
+    include(NIVEL."../com/config.php");
+    $dbAdmin = conectaBD("mysql","admin");
 
     if($id>0){
         $prepare = $dbAdmin->prepare("SELECT * FROM tbl_usuarios WHERE id = ?");
@@ -28,6 +28,16 @@
         if($usuario["status"]==1) $filtroStatus = [0,1,3];
         if($usuario["status"]==2) $filtroStatus = [0,2,3];
         if($usuario["status"]==3) $filtroStatus = [0,2,3];
+
+        if($id_aplicacion>0){
+            $prepare = $dbAdmin->prepare("SELECT a.id_rol FROM tbl_usuarios_rol AS a JOIN cat_roles AS b ON a.id_rol = b.id WHERE a.id_usuario = ? AND b.aplicacion = ?");
+            $result = $dbAdmin->execute($prepare,[$id, $id_aplicacion]);
+            $usuario["rol"] = ($result->fields[0]>0)? $result->fields[0] : 0 ;
+
+            $prepare = $dbAdmin->prepare("SELECT a.id_area FROM tbl_usuarios_area AS a JOIN cat_areas AS b ON a.id_area = b.id WHERE a.id_usuario = ? AND b.aplicacion = ?");
+            $result = $dbAdmin->execute($prepare,[$id, $id_aplicacion]);
+            $usuario["area"] = ($result->fields[0]>0)? $result->fields[0] : 0 ;
+        }
     }
 
     //-- CATALOGO DE ESTATUS --
@@ -91,7 +101,13 @@
 
                 <?php if($id>0){ ?>
                     $("#status option:selected").removeAttr("selected");
-                    $("#status option[value='<?php echo $usuario["status"]; ?>']").attr('selected', 'selected');
+                    $("#status option[value='<?= $usuario["status"] ?>']").attr('selected', 'selected');
+                    <?php if($id_aplicacion>0){ ?>
+                        $("#rol option:selected").removeAttr("selected");
+                        $("#rol option[value='<?= $usuario["rol"] ?>']").attr('selected', 'selected');
+                        $("#area option:selected").removeAttr("selected");
+                        $("#area option[value='<?= $usuario["area"] ?>']").attr('selected', 'selected');
+                    <?php } ?>
                 <?php } ?>
 
                 $("#imagen").change(function(){
@@ -119,7 +135,7 @@
                                     console.log(res);
                                     res = JSON.parse(res);
                                     window.parent.mensaje(res);
-                                    if(res.error === 0) window.location.href = "editarUsuario.php?id=" + res.id;
+                                    if(res.error === 0) window.location.href = "editarUsuario.php?id=" + res.id + "&id_aplicacion=" + res.id_aplicacion;
                                 }
                                 catch (e) {
                                     console.error("Error al parsear JSON:", e);
@@ -209,7 +225,7 @@
                                     <div class="col-md-4">
                                         <label for="rol" class="form-label">Rol</label>
                                         <select class="form-select" id="rol" name="rol" required>
-                                            <option selected disabled value="">Seleccione</option>
+                                            <option value="">Seleccione</option>
                                             <?php for($x=1;$x<=count($catRoles);$x++){ ?>
                                                 <option value="<?= $catRoles[$x]["id"] ?>"><?= $catRoles[$x]["nombre"] ?></option>
                                             <?php } ?>
@@ -220,7 +236,7 @@
                                     <div class="col-md-4">
                                         <label for="area" class="form-label">Área</label>
                                         <select class="form-select" id="area" name="area" required>
-                                            <option selected disabled value="">Seleccione</option>
+                                            <option value="">Seleccione</option>
                                             <?php for($x=1;$x<=count($catAreas);$x++){ ?>
                                                 <option value="<?= $catAreas[$x]["id"] ?>"><?= $catAreas[$x]["nombre"] ?></option>
                                             <?php } ?>
